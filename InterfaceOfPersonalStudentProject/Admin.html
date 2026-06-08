@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <style>
+    body { background: #f8f9fa; }
+    .tab-btn { cursor: pointer; user-select: none; }
+    .tab-btn.active { border-bottom: 3px solid #0d6efd; font-weight: bold; color: #0d6efd; }
+
+    .room-row { background: #fff; }
+    .room-row td { font-weight: 500; border-bottom: none !important; }
+
+    .sr-row td {
+      background: #f1f5fb;
+      padding-top: 4px !important;
+      padding-bottom: 4px !important;
+      border-top: none !important;
+      font-size: 0.88rem;
+      color: #444;
+    }
+    .sr-indent {
+      padding-left: 36px !important;
+    }
+
+    .add-sr-row td {
+      background: #eaf0fb;
+      border-top: none !important;
+      border-bottom: 2px solid #dee2e6 !important;
+      padding: 6px 12px 10px 36px !important;
+    }
+
+    .tree-line { color: #adb5bd; margin-right: 4px; }
+  </style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="Events.html">
+      <i class="bi bi-shield-lock me-2"></i>Admin Panel
+    </a>
+    <div class="collapse navbar-collapse justify-content-end">
+      <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link" href="Events.html"><i class="bi bi-door-open me-1"></i>Rooms</a></li>
+        <li class="nav-item"><a class="nav-link" id="navProfile" href="#"><i class="bi bi-person me-1"></i>Profile</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container py-4">
+
+  <div class="d-flex gap-4 mb-4 border-bottom pb-2">
+    <h5 class="tab-btn px-2 py-1" id="tab-btn-users" onclick="showTab('users')">
+      <i class="bi bi-people me-1"></i>Users
+    </h5>
+    <h5 class="tab-btn active px-2 py-1" id="tab-btn-rooms" onclick="showTab('rooms')">
+      <i class="bi bi-door-open me-1"></i>Rooms
+    </h5>
+  </div>
+
+  <div id="tab-users" style="display:none;">
+    <div class="table-responsive">
+      <table class="table table-hover bg-white rounded shadow-sm">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Age</th><th>Location</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr><td colspan="7" class="text-center text-muted py-3">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-rooms">
+    <div class="table-responsive">
+      <table class="table bg-white rounded shadow-sm" id="roomsTable">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>Room Name</th>
+            <th>Type</th>
+            <th>Capacity</th>
+            <th>Location</th>
+            <th>Event Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="roomsTableBody">
+          <tr><td colspan="7" class="text-center text-muted py-3">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+  if (!localStorage.getItem('token')) window.location.href = 'Login.html';
+
+  function getTokenPayload() {
+    try { return JSON.parse(atob(localStorage.getItem('token').split('.')[1])); }
+    catch { return null; }
+  }
+
+  const payload = getTokenPayload();
+  if (payload) {
+    const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+    if (role !== 'Admin') { alert('Access denied.'); window.location.href = 'Events.html'; }
+    const uid = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+    if (uid) document.getElementById('navProfile').href = 'userprofile.html?userId=' + uid;
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    window.location.href = 'Login.html';
+  });
+
+  function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = String(text ?? '');
+    return d.innerHTML;
+  }
+
+  function showTab(tab) {
+    ['users', 'rooms'].forEach(t => {
+      document.getElementById('tab-' + t).style.display = 'none';
+      document.getElementById('tab-btn-' + t).classList.remove('active');
+    });
+    document.getElementById('tab-' + tab).style.display = 'block';
+    document.getElementById('tab-btn-' + tab).classList.add('active');
+    if (tab === 'users') loadUsers();
+    if (tab === 'rooms') loadRooms();
+  }
+
+  async function loadUsers() {
+    const tbody = document.getElementById('usersTableBody');
+    try {
+      const users = await ApiService.getAdminUsers();
+      if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No users found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${escapeHtml(u.name)}</td>
+          <td>${escapeHtml(u.email)}</td>
+          <td><span class="badge ${u.role === 'Admin' ? 'bg-danger' : 'bg-primary'}">${escapeHtml(u.role)}</span></td>
+          <td>${u.age || '—'}</td>
+          <td>${escapeHtml(u.location || '—')}</td>
+          <td>${u.role !== 'Admin'
+            ? `<button class="btn btn-sm btn-outline-danger" data-id="${u.id}" data-name="${escapeHtml(u.name)}"><i class="bi bi-trash"></i></button>`
+            : '<span class="text-muted small">Protected</span>'}</td>
+        </tr>`).join('');
+
+      tbody.querySelectorAll('button[data-id]').forEach(btn =>
+        btn.addEventListener('click', () => deleteUser(+btn.dataset.id, btn.dataset.name))
+      );
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Failed to load users.</td></tr>';
+    }
+  }
+
+  async function deleteUser(id, name) {
+    if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
+    try { await ApiService.deleteAdminUser(id); loadUsers(); }
+    catch { alert('Failed to delete user.'); }
+  }
+
+  async function loadRooms() {
+    const tbody = document.getElementById('roomsTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Loading...</td></tr>';
+    try {
+      const rooms = await ApiService.getAdminRooms();
+      if (!rooms || rooms.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No rooms found.</td></tr>';
+        return;
+      }
+
+      const subRoomMap = {};
+      await Promise.all(rooms.map(async r => {
+        const id = r.id || r.Id;
+        try { subRoomMap[id] = await ApiService.getSubRoomsByRoomId(id); }
+        catch { subRoomMap[id] = []; }
+      }));
+
+      tbody.innerHTML = '';
+      rooms.forEach(r => {
+        const id   = r.id || r.Id;
+        const name = escapeHtml(r.roomName || r.RoomName || '');
+        const type = escapeHtml(r.roomType || r.RoomType || '');
+        const cap  = r.capacity || r.Capacity || 0;
+        const loc  = escapeHtml(r.location || r.Location || '—');
+        const exp  = r.expiryDate || r.ExpiryDate;
+        const expStr = exp ? new Date(exp).toLocaleString([], {dateStyle:'medium', timeStyle:'short'}) : '—';
+        const subs = subRoomMap[id] || [];
+
+        const roomTr = document.createElement('tr');
+        roomTr.className = 'room-row';
+        roomTr.innerHTML = `
+          <td>${id}</td>
+          <td><strong>${name}</strong></td>
+          <td><span class="badge ${type === 'Public' ? 'bg-success' : 'bg-secondary'}">${type}</span></td>
+          <td>${cap}</td>
+          <td>${loc}</td>
+          <td>${expStr}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger" data-action="del-room" data-id="${id}" data-name="${name}">
+              <i class="bi bi-trash"></i> Delete Room
+            </button>
+          </td>`;
+        tbody.appendChild(roomTr);
+
+        if (subs.length === 0) {
+          const emptyTr = document.createElement('tr');
+          emptyTr.className = 'sr-row';
+          emptyTr.innerHTML = `
+            <td></td>
+            <td class="sr-indent text-muted" colspan="6">
+              <span class="tree-line">└</span><em>No sub-rooms yet</em>
+            </td>`;
+          tbody.appendChild(emptyTr);
+        } else {
+          subs.forEach((sr, idx) => {
+            const srId   = sr.id || sr.Id;
+            const srName = escapeHtml(sr.subRoomName || sr.SubRoomName || '');
+            const isLast = idx === subs.length - 1;
+            const srTr   = document.createElement('tr');
+            srTr.className = 'sr-row';
+            srTr.id = 'sr-tr-' + srId;
+            srTr.innerHTML = `
+              <td></td>
+              <td class="sr-indent" colspan="5">
+                <span class="tree-line">${isLast ? '└' : '├'}</span>
+                <i class="bi bi-diagram-3 text-primary me-1"></i>${srName}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-danger btn-sm py-0" data-action="del-sr"
+                        data-sr-id="${srId}" data-room-id="${id}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>`;
+            tbody.appendChild(srTr);
+          });
+        }
+
+        const addTr = document.createElement('tr');
+        addTr.className = 'add-sr-row';
+        addTr.id = 'add-sr-row-' + id;
+        addTr.innerHTML = `
+          <td colspan="7">
+            <div class="d-flex gap-2 align-items-center">
+              <span class="tree-line">+</span>
+              <input type="text" id="new-sr-${id}" class="form-control form-control-sm"
+                     placeholder="New sub-room name…" style="max-width:220px;">
+              <button class="btn btn-sm btn-primary" data-action="add-sr" data-room-id="${id}">
+                <i class="bi bi-plus-lg"></i> Add Sub-Room
+              </button>
+            </div>
+          </td>`;
+        tbody.appendChild(addTr);
+      });
+
+      tbody.querySelectorAll('[data-action="del-room"]').forEach(btn =>
+        btn.addEventListener('click', () => deleteRoom(+btn.dataset.id, btn.dataset.name))
+      );
+      tbody.querySelectorAll('[data-action="del-sr"]').forEach(btn =>
+        btn.addEventListener('click', () => deleteSubRoom(+btn.dataset.srId, +btn.dataset.roomId))
+      );
+      tbody.querySelectorAll('[data-action="add-sr"]').forEach(btn =>
+        btn.addEventListener('click', () => addSubRoom(+btn.dataset.roomId))
+      );
+
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Failed to load rooms.</td></tr>';
+    }
+  }
+
+  async function deleteRoom(id, name) {
+    if (!confirm(`Delete room "${name}"? All sub-rooms and messages will be removed.`)) return;
+    try { await ApiService.deleteAdminRoom(id); loadRooms(); }
+    catch { alert('Failed to delete room.'); }
+  }
+
+  async function deleteSubRoom(srId, roomId) {
+    if (!confirm('Delete this sub-room? All its messages and memberships will be removed.')) return;
+    try { await ApiService.deleteSubRoom(srId); loadRooms(); }
+    catch { alert('Failed to delete sub-room.'); }
+  }
+
+  async function addSubRoom(roomId) {
+    const input = document.getElementById('new-sr-' + roomId);
+    const name  = input.value.trim();
+    if (!name) { alert('Please enter a sub-room name.'); return; }
+    try {
+      await ApiService.adminAddSubRoom(roomId, name);
+      input.value = '';
+      loadRooms();
+    } catch (e) {
+      alert('Failed to add sub-room: ' + e.message);
+    }
+  }
+
+  loadRooms();
+</script>
+</body>
+</html>

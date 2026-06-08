@@ -1,0 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace PersonalStudentProject.Business.Interfaces.IService
+{
+    public interface IHashService
+    {
+        string HashPassword(string password);
+        bool VerifyPassword(string password, string hashedPassword);
+    }
+}

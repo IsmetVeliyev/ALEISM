@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OdVira Connect</title>
+</head>
+<body>
+<script>
+    if (localStorage.getItem('token')) {
+        window.location.href = 'Events.html';
+    } else {
+        window.location.href = 'Login.html';
+    }
+</script>
+</body>
+</html>

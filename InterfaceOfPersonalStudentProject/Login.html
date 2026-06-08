@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login Page</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-light bg-light" style="padding-top:4px; padding-bottom:4px;">
+  <div class="container">
+    <a class="navbar-brand" href="#"><img src="assets/images/logo.png" alt="Connect" height="62" style="mix-blend-mode:multiply;"> <span style="font-size:1.55rem; font-weight:800; color:#1a4a6e; letter-spacing:0.3px;">Connect</span></a>
+    <div class="collapse navbar-collapse justify-content-end">
+      <ul class="navbar-nav">
+        <li class="nav-item" id="navLogin"><a class="nav-link" href="login.html">Login</a></li>
+        <li class="nav-item" id="navRegister"><a class="nav-link" href="register.html">Register</a></li>
+        <li class="nav-item d-none" id="navLogout"><a class="nav-link" href="#" id="logoutBtn">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-5" style="max-width:400px">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <h3 class="text-center mb-3">Login</h3>
+      <form id="loginForm">
+        <div class="mb-3">
+          <input type="email" id="email" class="form-control" placeholder="Email" required>
+        </div>
+        <div class="mb-3">
+          <input type="password" id="password" class="form-control" placeholder="Password" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+(function() {
+  const token = localStorage.getItem('token');
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+      window.location.href = role === 'Admin' ? 'Admin.html' : 'Events.html';
+    } catch(e) {
+      window.location.href = 'Events.html';
+    }
+  }
+})();
+
+function updateNavbar(){
+  const token = localStorage.getItem('token');
+  document.getElementById('navLogin').classList.toggle('d-none', !!token);
+  document.getElementById('navRegister').classList.toggle('d-none', !!token);
+  document.getElementById('navLogout').classList.toggle('d-none', !token);
+}
+
+updateNavbar();
+
+document.getElementById('logoutBtn').onclick = function(){
+  localStorage.removeItem('token');
+  window.location.href = 'Login.html';
+}
+
+document.getElementById('loginForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+
+  try{
+    const data = await ApiService.login(email,password);
+    const token = data.token || data;
+    if(token){
+      localStorage.setItem('token', token);
+      updateNavbar();
+      alert("Login successful");
+
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+        if (role === 'Admin') {
+          window.location.href = "Admin.html";
+        } else {
+          window.location.href = "Events.html";
+        }
+      } catch(e) {
+        window.location.href = "Events.html";
+      }
+    }else{
+      alert("Login failed, no token received");
+    }
+  }catch(err){
+    alert("Login error: " + (err.message||err));
+  }
+});
+</script>
+
+</body>
+</html>

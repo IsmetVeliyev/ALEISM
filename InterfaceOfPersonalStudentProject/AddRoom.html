@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { background-color: #f8f9fa; padding-top: 50px; }
+        .card { border-radius: 15px; border: none; }
+        #map { height: 350px; border-radius: 10px; border: 1px solid #dee2e6; }
+        #mapSearchResults { position: absolute; z-index: 1000; background: white; width: 100%; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; display: none; }
+        #mapSearchResults .search-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+        #mapSearchResults .search-item:hover { background: #e9ecef; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="pt-4 mb-2">
+    <button class="btn btn-outline-secondary" onclick="window.location.href='Events.html'">&larr; Back to Rooms</button>
+  </div>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white p-3">
+                    <h4 class="mb-0">Create a New Room</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form id="roomForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Room Name</label>
+                                <input type="text" id="roomName" class="form-control" placeholder="Room name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Room Type</label>
+                                <select id="roomType" class="form-select" required>
+                                    <option value="" disabled selected>Select type</option>
+                                    <option value="Public">Public</option>
+                                    <option value="Private">Private</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Capacity</label>
+                                <input type="number" id="capacity" class="form-control" value="10">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Event Date &amp; Time</label>
+                                <input type="datetime-local" id="expiryDate" class="form-control" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Description</label>
+                                <textarea id="description" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Location</label>
+                                <div class="position-relative mb-2">
+                                    <input type="text" id="mapSearch" class="form-control" placeholder="Search for a place..." autocomplete="off">
+                                    <div id="mapSearchResults"></div>
+                                </div>
+                                <div id="map"></div>
+                                <input type="hidden" id="locationName">
+                                <small class="text-muted mt-1 d-block">Selected: <span id="selectedLocation">Click on the map or search for a place</span></small>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="isPasswordProtected">
+                                    <label class="form-check-label" for="isPasswordProtected">Password Protected</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6" id="passwordWrapper" style="display: none;">
+                                <label class="form-label fw-bold">Password</label>
+                                <input type="password" id="password" class="form-control">
+                            </div>
+                            <div class="col-12 mt-4">
+                                <button type="submit" class="btn btn-primary w-100 fw-bold py-2">SAVE ROOM</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    if (!localStorage.getItem('token')) {
+        window.location.href = 'Login.html';
+    }
+
+    function getUserIdFromToken() {
+        const token = localStorage.getItem('token');
+        if (!token) return 0;
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || 0;
+        } catch(e) {
+            return 0;
+        }
+    }
+
+    const map = L.map('map').setView([50.6326, 5.5797], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = null;
+    let selectedLocationName = "";
+
+    function placeMarker(lat, lng, name) {
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lng]).addTo(map).bindPopup(name).openPopup();
+        map.setView([lat, lng], 15);
+        selectedLocationName = name;
+        document.getElementById('locationName').value = name;
+        document.getElementById('selectedLocation').textContent = name;
+    }
+
+    map.on('click', async function(e) {
+        const { lat, lng } = e.latlng;
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+            const data = await res.json();
+            const name = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            placeMarker(lat, lng, name);
+        } catch {
+            placeMarker(lat, lng, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }
+    });
+
+    const searchInput = document.getElementById('mapSearch');
+    const searchResults = document.getElementById('mapSearchResults');
+    let searchTimeout = null;
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        const query = searchInput.value.trim();
+        if (query.length < 3) { searchResults.style.display = 'none'; return; }
+
+        searchTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+                const results = await res.json();
+                if (results.length === 0) {
+                    searchResults.innerHTML = '<div class="search-item text-muted">No results found</div>';
+                } else {
+                    searchResults.innerHTML = results.map(r =>
+                        `<div class="search-item" data-lat="${r.lat}" data-lon="${r.lon}" data-name="${r.display_name}">${r.display_name}</div>`
+                    ).join('');
+                }
+                searchResults.style.display = 'block';
+            } catch {
+                searchResults.style.display = 'none';
+            }
+        }, 400);
+    });
+
+    searchResults.addEventListener('click', (e) => {
+        const item = e.target.closest('.search-item');
+        if (!item || !item.dataset.lat) return;
+        placeMarker(parseFloat(item.dataset.lat), parseFloat(item.dataset.lon), item.dataset.name);
+        searchInput.value = item.dataset.name;
+        searchResults.style.display = 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!searchResults.contains(e.target) && e.target !== searchInput) {
+            searchResults.style.display = 'none';
+        }
+    });
+
+    const roomForm = document.getElementById('roomForm');
+    const passToggle = document.getElementById('isPasswordProtected');
+    const passWrapper = document.getElementById('passwordWrapper');
+
+    passToggle.addEventListener('change', () => {
+        passWrapper.style.display = passToggle.checked ? 'block' : 'none';
+        if (!passToggle.checked) document.getElementById('password').value = "";
+    });
+
+    roomForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const location = document.getElementById('locationName').value || "Virtual";
+
+        const expiryRaw = document.getElementById('expiryDate').value;
+        if (!expiryRaw) {
+            alert("Please select an expiry date.");
+            return;
+        }
+        const expiryDate = new Date(expiryRaw);
+        if (isNaN(expiryDate.getTime())) {
+            alert("Invalid expiry date.");
+            return;
+        }
+
+        const payload = {
+            userId: getUserIdFromToken(),
+            roomName: document.getElementById('roomName').value,
+            roomType: document.getElementById('roomType').value,
+            isPasswordProtected: passToggle.checked,
+            password: document.getElementById('password').value || "",
+            description: document.getElementById('description').value,
+            expiryDate: expiryDate.toISOString(),
+            capacity: parseInt(document.getElementById('capacity').value),
+            location: location
+        };
+
+        try {
+            await ApiService.addRoom(payload);
+            alert("Room created!");
+            window.location.href = 'Events.html';
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SubRooms - Global Room Chat</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+  <style>
+    body { background: #f8f9fa; }
+
+    #globalChatContainer, #subChatContainer {
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 15px;
+      display: flex;
+      flex-direction: column;
+      height: 85vh;
+      position: sticky;
+      top: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: #f8f9fa;
+      border-bottom: 1px solid #eee;
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .chat-icon {
+      font-size: 1.5rem;
+      background: #0d6efd;
+      color: white;
+      width: 45px;
+      height: 45px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+    }
+
+    #globalChatBox, #subChatBox {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-bubble {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 15px;
+      background: #f1f3f5;
+    }
+
+    .message-info {
+      font-size: 0.75rem;
+      color: #6c757d;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .room-card { transition: all 0.3s ease; border-radius: 12px; }
+    .room-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.08); }
+
+    .room-card.active-chat { border: 2px solid #198754 !important; }
+
+    .sender-link { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+    .sender-link:hover { opacity: 0.75; }
+
+    .reply-quote {
+      background: rgba(0,0,0,0.06);
+      border-left: 3px solid #0d6efd;
+      border-radius: 6px;
+      padding: 4px 8px;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+      color: #495057;
+    }
+    .reply-quote .reply-sender { font-weight: 600; color: #0d6efd; margin-bottom: 2px; }
+
+    .reply-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #e9f0ff;
+      border-left: 3px solid #0d6efd;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      color: #495057;
+    }
+    .reply-banner .cancel-reply {
+      margin-left: auto;
+      cursor: pointer;
+      color: #6c757d;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .message-bubble:hover .reply-btn { opacity: 1; }
+    .reply-btn {
+      opacity: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #6c757d;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: opacity 0.15s;
+    }
+    .reply-btn:hover { background: #e9ecef; }
+
+    #dmChatBox .dm-bubble-mine { background:#0d6efd; color:#fff; align-self:flex-end; }
+    #dmChatBox .dm-bubble-theirs { background:#f1f3f5; color:#212529; align-self:flex-start; }
+    #dmChatBox .dm-bubble {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 14px;
+    }
+    #dmChatBox .dm-bubble .dm-info {
+      font-size: 0.7rem;
+      opacity: 0.8;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+
+    .dm-conv-item {
+      display: flex;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .dm-conv-item:hover { background: #f8f9fa; }
+    .dm-conv-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #6f42c1;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .dm-conv-body { flex-grow: 1; min-width: 0; }
+    .dm-conv-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+    .dm-conv-partner { font-weight: 600; color: #212529; }
+    .dm-conv-time { color: #6c757d; font-size: 0.75rem; }
+    .dm-conv-preview {
+      color: #6c757d;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-light" style="background:#e9ecef; padding-top:4px; padding-bottom:4px;">
+  <div class="container">
+    <a class="navbar-brand" href="Events.html"><img src="assets/images/logo.png" alt="Connect" height="62" style="mix-blend-mode:multiply;"> <span style="font-size:1.55rem; font-weight:800; color:#1a4a6e; letter-spacing:0.3px;">Connect</span></a>
+    <div class="collapse navbar-collapse justify-content-end">
+      <ul class="navbar-nav">
+        <li class="nav-item"><a class="nav-link" href="#" id="inboxBtn"><i class="bi bi-envelope-fill"></i> Inbox</a></li>
+        <li class="nav-item"><a class="nav-link" id="navProfile" href="#">Profile</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" id="logoutBtn">Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid py-4">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <button class="btn btn-outline-secondary" onclick="window.location.href='Events.html'">
+      &larr; Back to Rooms
+    </button>
+    <h4 class="fw-bold mb-0" id="roomTitle"></h4>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary fw-bold" id="editRoomBtn" style="display:none"
+              data-bs-toggle="modal" data-bs-target="#editRoomModal">
+        <i class="bi bi-pencil me-1"></i> Edit Room
+      </button>
+      <button class="btn btn-outline-danger fw-bold" id="deleteRoomBtn" style="display:none">
+        <i class="bi bi-trash me-1"></i> Delete Room
+      </button>
+      <button class="btn btn-success btn-lg shadow-sm fw-bold" onclick="goToCreateRoom()">
+        + Create SubRoom
+      </button>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editRoomModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Room</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editRoomId">
+          <input type="hidden" id="editRoomName">
+          <input type="hidden" id="editRoomDesc">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Room Type</label>
+            <select id="editRoomType" class="form-select">
+              <option value="Public">Public</option>
+              <option value="Private">Private</option>
+            </select>
+          </div>
+          <div class="mb-3" id="editPasswordWrapper" style="display:none;">
+            <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
+            <input type="password" id="editRoomPassword" class="form-control" placeholder="Set a password for this private room">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Capacity</label>
+            <input type="number" id="editRoomCapacity" class="form-control" min="1">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Event Date &amp; Time</label>
+            <input type="datetime-local" id="editRoomExpiry" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Location</label>
+            <input type="text" id="editRoomLocation" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary fw-bold" id="saveEditBtn">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+
+    <div class="col-md-4 col-lg-3">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Sub Rooms</h2>
+      </div>
+      <hr>
+      <div id="subRoomContainer" class="row"></div>
+    </div>
+
+    <div class="col-md-4 col-lg-5">
+      <div id="subChatContainer" style="display:none;">
+        <div class="chat-header">
+          <div class="chat-icon" style="background:#198754;"><i class="bi bi-chat-dots-fill"></i></div>
+          <div>
+            <h5 class="mb-0" id="subChatTitle">SubRoom Chat</h5>
+            <small class="text-muted">Messages in this sub-room</small>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="closeSubChat()">Close</button>
+        </div>
+
+        <div id="subChatBox">
+          <p class="text-center text-muted mt-5">Select a sub-room to start chatting.</p>
+        </div>
+
+        <div id="subReplyBanner" class="reply-banner" style="display:none;">
+          <span>↩ Replying to <strong id="subReplyName"></strong>: <span id="subReplyPreview"></span></span>
+          <span class="cancel-reply" onclick="cancelReply('sub')">✕</span>
+        </div>
+        <div class="p-3 border-top bg-light">
+          <div class="input-group">
+            <button class="btn btn-outline-secondary" type="button" onclick="toggleEmoji('subMsgInput', this)">😊</button>
+            <input type="text" id="subMsgInput" class="form-control" placeholder="Type a message...">
+            <button class="btn btn-success px-4" onclick="sendSubRoomMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+      <div id="subChatPlaceholder"></div>
+    </div>
+
+    <div class="col-md-4 col-lg-4">
+      <div id="globalChatContainer">
+        <div class="chat-header">
+          <div class="chat-icon"><i class="bi bi-chat-dots-fill"></i></div>
+          <div>
+            <h5 class="mb-0">Room Chat</h5>
+            <small class="text-muted">All messages in this room</small>
+          </div>
+        </div>
+
+        <div id="globalChatBox">
+          <p class="text-center text-muted mt-5">Loading messages...</p>
+        </div>
+
+        <div id="globalReplyBanner" class="reply-banner" style="display:none;">
+          <span>↩ Replying to <strong id="globalReplyName"></strong>: <span id="globalReplyPreview"></span></span>
+          <span class="cancel-reply" onclick="cancelReply('global')">✕</span>
+        </div>
+        <div class="p-3 border-top bg-light">
+          <div class="input-group">
+            <button class="btn btn-outline-secondary" type="button" onclick="toggleEmoji('globalMsgInput', this)">😊</button>
+            <input type="text" id="globalMsgInput" class="form-control" placeholder="Type a message...">
+            <button class="btn btn-primary px-4" onclick="sendGlobalMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="dmOffcanvas" aria-labelledby="dmOffcanvasLabel" style="width: 420px;">
+  <div class="offcanvas-header bg-light border-bottom">
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="dmBackBtn" onclick="showInboxView()" style="display:none;">
+        <i class="bi bi-arrow-left"></i>
+      </button>
+      <div class="chat-icon" style="background:#6f42c1; width:40px; height:40px; font-size:1.1rem;">
+        <i class="bi bi-envelope-fill"></i>
+      </div>
+      <div>
+        <h6 class="mb-0" id="dmOffcanvasLabel">Inbox</h6>
+        <small class="text-muted" id="dmRecipientEmail"></small>
+      </div>
+    </div>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column p-0" style="height: calc(100% - 65px);">
+
+    <div id="dmListView" class="flex-grow-1" style="overflow-y:auto;">
+      <div id="dmConversationList">
+        <p class="text-center text-muted mt-5">Loading...</p>
+      </div>
+    </div>
+
+    <div id="dmThreadView" style="display:none; flex-grow:1; flex-direction:column; min-height:0;">
+      <div id="dmChatBox" class="flex-grow-1 p-3" style="overflow-y:auto; display:flex; flex-direction:column; gap:10px;">
+        <p class="text-center text-muted mt-5">Loading...</p>
+      </div>
+      <div class="p-3 border-top bg-light">
+        <div class="input-group">
+          <button class="btn btn-outline-secondary" type="button" onclick="toggleEmoji('dmMsgInput', this)">😊</button>
+          <input type="text" id="dmMsgInput" class="form-control" placeholder="Type a message...">
+          <button class="btn btn-primary px-4" onclick="sendDirectMessageNow()">Send</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="emojiPickerWrapper" style="position:fixed;z-index:9999;display:none;bottom:80px;right:20px;">
+  <emoji-picker></emoji-picker>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/js/api.js"></script>
+
+<script>
+  if (!localStorage.getItem('token')) {
+    window.location.href = 'Login.html';
+  }
+
+  function getCurrentUserEmail() {
+    const token = localStorage.getItem('token');
+    if (!token) return "";
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || "";
+    } catch(e) {
+      return "";
+    }
+  }
+
+  function getUserIdFromToken() {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || null;
+    } catch(e) {
+      return null;
+    }
+  }
+
+  const userId = getUserIdFromToken();
+  if (userId) {
+    document.getElementById('navProfile').href = 'userprofile.html?userId=' + userId;
+  }
+  document.getElementById('logoutBtn').onclick = function() {
+    localStorage.removeItem('token');
+    window.location.href = 'Login.html';
+  };
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomId = urlParams.get("roomId");
+  const roomName = urlParams.get("roomName") || ("Room " + roomId);
+  const currentUserId = parseInt(getUserIdFromToken() || '0');
+
+  document.getElementById("roomTitle").textContent = roomName;
+
+  let currentRoomData = null;
+  let isRoomOwner = false;
+  (async () => {
+    try {
+      currentRoomData = await ApiService.getRoomById(roomId);
+      const ownerId = parseInt(currentRoomData.userId || currentRoomData.UserId || 0);
+      if (ownerId === currentUserId) {
+        isRoomOwner = true;
+        document.getElementById('editRoomBtn').style.display = '';
+        const btn = document.getElementById('deleteRoomBtn');
+        btn.style.display = '';
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this room? All sub-rooms, messages and memberships will be removed permanently.')) return;
+          try {
+            await ApiService.deleteRoom(roomId);
+            window.location.href = 'Events.html';
+          } catch (e) {
+            alert('Failed to delete room: ' + e.message);
+          }
+        });
+        document.getElementById('editRoomId').value       = roomId;
+        document.getElementById('editRoomName').value     = currentRoomData.roomName || currentRoomData.RoomName || '';
+        document.getElementById('editRoomDesc').value     = currentRoomData.description || currentRoomData.Description || '';
+        document.getElementById('editRoomType').value     = currentRoomData.roomType || currentRoomData.RoomType || 'Public';
+        document.getElementById('editRoomCapacity').value = currentRoomData.capacity || currentRoomData.Capacity || 10;
+        document.getElementById('editRoomLocation').value = currentRoomData.location || currentRoomData.Location || '';
+        const expiry = currentRoomData.expiryDate || currentRoomData.ExpiryDate;
+        if (expiry) {
+          document.getElementById('editRoomExpiry').value =
+            new Date(new Date(expiry).getTime() - new Date().getTimezoneOffset() * 60000)
+              .toISOString().slice(0, 16);
+        }
+      }
+    } catch {}
+  })();
+
+  document.getElementById('editRoomType').addEventListener('change', function() {
+    const wrapper = document.getElementById('editPasswordWrapper');
+    wrapper.style.display = this.value === 'Private' ? 'block' : 'none';
+    if (this.value !== 'Private') document.getElementById('editRoomPassword').value = '';
+  });
+
+  document.getElementById('saveEditBtn').addEventListener('click', async () => {
+    const id      = document.getElementById('editRoomId').value;
+    const expRaw  = document.getElementById('editRoomExpiry').value;
+    const type    = document.getElementById('editRoomType').value;
+    const password = document.getElementById('editRoomPassword').value;
+
+    if (type === 'Private' && !password.trim()) {
+      alert('Please set a password for the private room.');
+      return;
+    }
+
+    const payload = {
+      userId: currentUserId,
+      roomName: document.getElementById('editRoomName').value,
+      roomType: type,
+      description: document.getElementById('editRoomDesc').value,
+      capacity: parseInt(document.getElementById('editRoomCapacity').value),
+      location: document.getElementById('editRoomLocation').value,
+      expiryDate: expRaw ? new Date(expRaw).toISOString() : new Date().toISOString(),
+      isPasswordProtected: type === 'Private',
+      password: type === 'Private' ? password : ""
+    };
+    try {
+      await ApiService.updateRoom(id, payload);
+      bootstrap.Modal.getInstance(document.getElementById('editRoomModal')).hide();
+      alert('Room updated!');
+    } catch (e) {
+      alert('Failed to update: ' + e.message);
+    }
+  });
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text ?? '');
+    return div.innerHTML;
+  }
+
+  function displayName(email) {
+    if (!email) return 'Unknown';
+    return email.includes('@') ? email.split('@')[0] : email;
+  }
+
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+
+    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) {
+      return time;
+    }
+    const day = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return day + ' ' + time;
+  }
+
+  document.getElementById("globalMsgInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") sendGlobalMessage();
+  });
+  document.getElementById("subMsgInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") sendSubRoomMessage();
+  });
+
+  async function loadSubRooms() {
+    const container = document.getElementById("subRoomContainer");
+    try {
+      const subRooms = await ApiService.getSubRoomsByRoomId(roomId);
+
+      if (!subRooms || subRooms.length === 0) {
+        container.innerHTML = "<p class='text-muted'>No sub-rooms found for this room.</p>";
+        return;
+      }
+
+      container.innerHTML = subRooms.map(s => `
+        <div class="col-xl-6 mb-4">
+          <div class="card room-card h-100 border-0 shadow-sm" id="card-${s.id}">
+            <div class="card-body">
+              <h5 class="card-title fw-bold">${escapeHtml(s.subRoomName)}</h5>
+              <p class="card-text text-muted small">
+                <i class="bi bi-people-fill"></i> <span id="member-count-${s.id}">...</span> members
+              </p>
+              <div class="d-flex gap-2 mt-3 flex-wrap">
+                <button class="btn btn-primary btn-sm" id="join-btn-${s.id}" data-subroom-id="${s.id}">Join</button>
+                <button class="btn btn-success btn-sm" data-subroom-id="${s.id}" data-subroom-name="${escapeHtml(s.subRoomName)}">Chat</button>
+                <button class="btn btn-outline-secondary btn-sm" data-details-id="${s.id}">Members</button>
+                ${isRoomOwner ? `<button class="btn btn-outline-danger btn-sm" data-delete-sr="${s.id}" data-sr-name="${escapeHtml(s.subRoomName)}"><i class="bi bi-trash"></i></button>` : ''}
+              </div>
+              <div id="details-${s.id}" class="mt-2 d-none"></div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('[data-subroom-id]').forEach(btn => {
+        if (btn.id && btn.id.startsWith('join-btn-')) {
+          btn.addEventListener('click', function() {
+            if (this.dataset.joined === "true") {
+              leaveSubRoom(parseInt(this.dataset.subroomId), this);
+            } else {
+              enterSubRoom(parseInt(this.dataset.subroomId), this);
+            }
+          });
+        }
+        if (btn.classList.contains('btn-success')) {
+          btn.addEventListener('click', function() { openSubChat(parseInt(this.dataset.subroomId), this.dataset.subroomName); });
+        }
+      });
+      container.querySelectorAll('[data-details-id]').forEach(btn => {
+        btn.addEventListener('click', function() { toggleDetails(parseInt(this.dataset.detailsId)); });
+      });
+      container.querySelectorAll('[data-delete-sr]').forEach(btn => {
+        btn.addEventListener('click', async function() {
+          if (!confirm(`Delete sub-room "${this.dataset.srName}"? All messages and memberships will be removed.`)) return;
+          try {
+            await ApiService.deleteSubRoom(parseInt(this.dataset.deleteSr));
+            loadSubRooms();
+          } catch (e) {
+            alert('Failed to delete: ' + e.message);
+          }
+        });
+      });
+
+      for (const s of subRooms) {
+        checkMembership(s.id);
+      }
+
+    } catch (error) {
+      container.innerHTML = "<div class='alert alert-danger'>Failed to load sub-rooms.</div>";
+    }
+  }
+
+  async function checkMembership(subRoomId) {
+    try {
+      const users = await ApiService.getAllUserSubRooms(subRoomId);
+
+      const countEl = document.getElementById("member-count-" + subRoomId);
+      if (countEl) countEl.textContent = users.length;
+
+      const currentId = parseInt(getUserIdFromToken());
+      const alreadyJoined = users.some(u => u.id === currentId);
+      const btn = document.getElementById("join-btn-" + subRoomId);
+      if (btn) {
+        if (alreadyJoined) {
+          btn.textContent = "Leave";
+          btn.classList.remove("btn-primary");
+          btn.classList.add("btn-danger");
+          btn.disabled = false;
+          btn.dataset.joined = "true";
+        } else {
+          btn.textContent = "Join";
+          btn.classList.remove("btn-danger");
+          btn.classList.add("btn-primary");
+          btn.disabled = false;
+          btn.dataset.joined = "false";
+        }
+      }
+    } catch (e) {}
+  }
+
+  let globalMsgs = [];
+  let globalReplyToId = null;
+
+  async function loadRoomMessages() {
+    if (!roomId) return;
+
+    const chatBox = document.getElementById("globalChatBox");
+    try {
+      const msgs = await ApiService.getMessagesByRoomId(roomId);
+
+      if (!msgs || msgs.length === 0) {
+        chatBox.innerHTML = "<p class='text-center text-muted mt-5'>No messages yet.</p>";
+        return;
+      }
+
+      globalMsgs = msgs;
+
+      chatBox.innerHTML = msgs.map(m => `
+        <div class="message-bubble" style="position:relative;">
+          ${m.replyToContent ? `
+          <div class="reply-quote">
+            <div class="reply-sender">${escapeHtml(displayName(m.replyToSenderEmail))}</div>
+            <div>${escapeHtml(m.replyToContent)}</div>
+          </div>` : ''}
+          <div class="message-info">
+            <span class="fw-bold text-primary sender-link"
+                  role="button"
+                  data-sender-id="${m.senderId}"
+                  data-sender-email="${escapeHtml(m.senderEmail)}"
+                  onclick="openDirectMessage(this.dataset.senderId, this.dataset.senderEmail)">
+              ${escapeHtml(displayName(m.senderEmail))}
+            </span>
+            <span>${formatDate(m.dateSent)}</span>
+          </div>
+          <div class="message-content">${escapeHtml(m.content)}</div>
+          <button class="reply-btn" data-reply-id="${m.id}" title="Reply">↩</button>
+        </div>
+      `).join('');
+
+      chatBox.querySelectorAll('.reply-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setReply(this.dataset.replyId, 'global');
+        });
+      });
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+      chatBox.innerHTML = "<p class='text-center text-muted'>Failed to load messages.</p>";
+    }
+  }
+
+  async function sendGlobalMessage() {
+    const input = document.getElementById("globalMsgInput");
+    const content = input.value.trim();
+    if (!content || !roomId) return;
+    const replyToId = globalReplyToId;
+    cancelReply('global');
+
+    try {
+      await ApiService.sendMessage({
+        roomId: parseInt(roomId),
+        content: content,
+        replyToId: replyToId
+      });
+      input.value = "";
+      await loadRoomMessages();
+    } catch (err) {
+      alert("Failed to send message.");
+    }
+  }
+
+  let activeSubRoomId = null;
+  let subChatInterval = null;
+  let subMsgs = [];
+  let subReplyToId = null;
+
+  function openSubChat(subRoomId, subRoomName) {
+    if (activeSubRoomId) {
+      const prevCard = document.getElementById("card-" + activeSubRoomId);
+      if (prevCard) prevCard.classList.remove("active-chat");
+    }
+
+    activeSubRoomId = subRoomId;
+
+    const card = document.getElementById("card-" + subRoomId);
+    if (card) card.classList.add("active-chat");
+
+    document.getElementById("subChatTitle").textContent = subRoomName + " Chat";
+    document.getElementById("subChatContainer").style.display = "flex";
+    document.getElementById("subChatPlaceholder").style.display = "none";
+    loadSubRoomMessages();
+
+    if (subChatInterval) clearInterval(subChatInterval);
+    subChatInterval = setInterval(loadSubRoomMessages, 10000);
+  }
+
+  function closeSubChat() {
+    if (activeSubRoomId) {
+      const card = document.getElementById("card-" + activeSubRoomId);
+      if (card) card.classList.remove("active-chat");
+    }
+
+    activeSubRoomId = null;
+    document.getElementById("subChatContainer").style.display = "none";
+    document.getElementById("subChatPlaceholder").style.display = "block";
+    if (subChatInterval) clearInterval(subChatInterval);
+  }
+
+  async function loadSubRoomMessages() {
+    if (!activeSubRoomId) return;
+    const chatBox = document.getElementById("subChatBox");
+    try {
+      const msgs = await ApiService.getSubMessagesByRoomId(activeSubRoomId);
+      if (!msgs || msgs.length === 0) {
+        chatBox.innerHTML = "<p class='text-center text-muted mt-5'>No messages yet. Start the conversation!</p>";
+        return;
+      }
+
+      subMsgs = msgs;
+
+      chatBox.innerHTML = msgs.map(m => `
+        <div class="message-bubble" style="position:relative;">
+          ${m.replyToContent ? `
+          <div class="reply-quote">
+            <div class="reply-sender">${escapeHtml(displayName(m.replyToSenderEmail))}</div>
+            <div>${escapeHtml(m.replyToContent)}</div>
+          </div>` : ''}
+          <div class="message-info">
+            <span class="fw-bold text-success">${escapeHtml(displayName(m.senderEmail))}</span>
+            <span>${formatDate(m.dateSent)}</span>
+          </div>
+          <div class="message-content">${escapeHtml(m.content)}</div>
+          <button class="reply-btn" data-reply-id="${m.id}" title="Reply">↩</button>
+        </div>
+      `).join('');
+
+      chatBox.querySelectorAll('.reply-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setReply(this.dataset.replyId, 'sub');
+        });
+      });
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+      chatBox.innerHTML = "<p class='text-center text-muted'>Failed to load messages.</p>";
+    }
+  }
+
+  async function sendSubRoomMessage() {
+    const input = document.getElementById("subMsgInput");
+    const content = input.value.trim();
+    if (!content || !activeSubRoomId) return;
+    const replyToId = subReplyToId;
+    cancelReply('sub');
+
+    try {
+      await ApiService.sendSubMessage({
+        roomId: activeSubRoomId,
+        content: content,
+        replyToId: replyToId
+      });
+      input.value = "";
+      await loadSubRoomMessages();
+    } catch (err) {
+      if (err.status === 403) {
+        alert("You need to join this sub-room first before sending messages.");
+      } else {
+        alert("Failed to send message.");
+      }
+    }
+  }
+
+  async function enterSubRoom(id, btn) {
+    try {
+      await ApiService.joinSubRoom(id);
+      btn.textContent = "Leave";
+      btn.classList.remove("btn-primary");
+      btn.classList.add("btn-danger");
+      btn.dataset.joined = "true";
+
+      const countEl = document.getElementById("member-count-" + id);
+      if (countEl) {
+        const current = parseInt(countEl.textContent) || 0;
+        countEl.textContent = current + 1;
+      }
+    } catch (err) {
+      alert(err.message || "Could not join sub-room.");
+    }
+  }
+
+  async function leaveSubRoom(id, btn) {
+    if (!confirm("Are you sure you want to leave this sub-room?")) return;
+    try {
+      await ApiService.leaveSubRoom(id);
+
+      btn.textContent = "Join";
+      btn.classList.remove("btn-danger");
+      btn.classList.add("btn-primary");
+      btn.dataset.joined = "false";
+
+      const countEl = document.getElementById("member-count-" + id);
+      if (countEl) {
+        const current = parseInt(countEl.textContent) || 1;
+        countEl.textContent = Math.max(0, current - 1);
+      }
+    } catch (err) {
+      alert(err.message || "Could not leave sub-room.");
+    }
+  }
+
+  async function toggleDetails(subRoomId) {
+    const div = document.getElementById("details-" + subRoomId);
+    div.classList.toggle("d-none");
+
+    if (!div.classList.contains("d-none")) {
+      div.innerHTML = "Loading...";
+      try {
+        const users = await ApiService.getAllUserSubRooms(subRoomId);
+        div.innerHTML = users.map(u => `
+          <div class='small border-bottom py-1'>
+            <i class="bi bi-person-fill"></i>
+            <a href="userprofile.html?userId=${u.id}"
+               target="_blank"
+               class="text-decoration-none"
+               title="${escapeHtml(u.email || '')}">
+               ${escapeHtml(u.name || String(u.id))}
+            </a>
+          </div>
+        `).join('');
+      } catch (e) {
+        div.innerHTML = "<span class='text-danger small'>Failed to load members.</span>";
+      }
+    }
+  }
+
+  function goToCreateRoom() {
+    window.location.href = "AddSubRoom.html?roomId=" + roomId;
+  }
+
+  let activeDmPartnerId = null;
+  let activeDmPartnerEmail = null;
+  let dmInterval = null;
+  let dmOffcanvasInstance = null;
+
+  function getDmOffcanvas() {
+    if (!dmOffcanvasInstance) {
+      dmOffcanvasInstance = new bootstrap.Offcanvas(document.getElementById('dmOffcanvas'));
+    }
+    return dmOffcanvasInstance;
+  }
+
+  function showInboxView() {
+    if (dmInterval) { clearInterval(dmInterval); dmInterval = null; }
+    activeDmPartnerId = null;
+    activeDmPartnerEmail = null;
+    document.getElementById("dmListView").style.display = "block";
+    document.getElementById("dmThreadView").style.display = "none";
+    document.getElementById("dmBackBtn").style.display = "none";
+    document.getElementById("dmOffcanvasLabel").textContent = "Inbox";
+    document.getElementById("dmRecipientEmail").textContent = "";
+    loadInbox();
+  }
+
+  function showThreadView() {
+    document.getElementById("dmListView").style.display = "none";
+    document.getElementById("dmThreadView").style.display = "flex";
+    document.getElementById("dmBackBtn").style.display = "inline-block";
+  }
+
+  async function openInbox() {
+    getDmOffcanvas().show();
+    showInboxView();
+  }
+
+  async function loadInbox() {
+    const currentId = parseInt(getUserIdFromToken());
+    const listEl = document.getElementById("dmConversationList");
+    try {
+      const all = await ApiService.getDirectMessagesByUserId(currentId);
+      if (!all || !all.length) {
+        listEl.innerHTML = "<p class='text-center text-muted mt-5'>No messages yet.</p>";
+        return;
+      }
+      const threads = new Map();
+      for (const m of all) {
+        const isMine = m.senderId === currentId;
+        const partnerId   = isMine ? m.receiverId : m.senderId;
+        const partnerName = isMine
+          ? (m.receiverName || m.senderEmail || 'User #' + partnerId)
+          : (m.senderName  || m.senderEmail  || 'User #' + partnerId);
+        const existing = threads.get(partnerId);
+        if (!existing || new Date(m.dateSent) > new Date(existing.dateSent)) {
+          threads.set(partnerId, {
+            partnerId,
+            partnerName,
+            partnerEmail: isMine ? '' : (m.senderEmail || ''),
+            content: m.content,
+            dateSent: m.dateSent,
+            isMine
+          });
+        }
+      }
+      const sorted = Array.from(threads.values()).sort((a, b) => new Date(b.dateSent) - new Date(a.dateSent));
+      listEl.innerHTML = sorted.map(t => {
+        const name    = t.partnerName;
+        const initial = name.charAt(0).toUpperCase();
+        const preview = (t.isMine ? 'You: ' : '') + t.content;
+        return `
+          <div class="dm-conv-item"
+               data-partner-id="${t.partnerId}"
+               data-partner-name="${escapeHtml(name)}"
+               data-partner-email="${escapeHtml(t.partnerEmail)}">
+            <div class="dm-conv-avatar">${escapeHtml(initial)}</div>
+            <div class="dm-conv-body">
+              <div class="dm-conv-head">
+                <span class="dm-conv-partner">${escapeHtml(name)}</span>
+                <span class="dm-conv-time">${formatDate(t.dateSent)}</span>
+              </div>
+              <div class="dm-conv-preview">${escapeHtml(preview)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.dm-conv-item').forEach(el => {
+        el.addEventListener('click', () =>
+          openDirectMessage(el.dataset.partnerId, el.dataset.partnerName)
+        );
+      });
+    } catch (e) {
+      listEl.innerHTML = "<p class='text-center text-danger mt-5'>Failed to load inbox.</p>";
+    }
+  }
+
+  async function openDirectMessage(senderIdRaw, displayNameOrEmail) {
+    const targetId = parseInt(senderIdRaw);
+    const currentId = parseInt(getUserIdFromToken());
+    if (!targetId) {
+      alert("Cannot open DM: this message has no sender id (old message).");
+      return;
+    }
+    if (currentId === targetId) return;
+
+    activeDmPartnerId = targetId;
+    activeDmPartnerEmail = displayNameOrEmail;
+
+    document.getElementById("dmOffcanvasLabel").textContent = "Chat with " + displayNameOrEmail;
+    document.getElementById("dmRecipientEmail").textContent = displayNameOrEmail;
+    document.getElementById("dmChatBox").innerHTML = "<p class='text-center text-muted mt-5'>Loading...</p>";
+
+    getDmOffcanvas().show();
+    showThreadView();
+
+    await loadDirectMessages();
+    if (dmInterval) clearInterval(dmInterval);
+    dmInterval = setInterval(loadDirectMessages, 10000);
+  }
+
+  async function loadDirectMessages() {
+    if (!activeDmPartnerId) return;
+    const currentId = parseInt(getUserIdFromToken());
+    const chatBox = document.getElementById("dmChatBox");
+    try {
+      const all = await ApiService.getDirectMessagesByUserId(currentId);
+      const thread = (all || []).filter(m =>
+        (m.senderId === currentId && m.receiverId === activeDmPartnerId) ||
+        (m.senderId === activeDmPartnerId && m.receiverId === currentId)
+      );
+      if (!thread.length) {
+        chatBox.innerHTML = "<p class='text-center text-muted mt-5'>No messages yet. Say hi!</p>";
+        return;
+      }
+      chatBox.innerHTML = thread.map(m => {
+        const isMine = m.senderId === currentId;
+        const bubbleClass = isMine ? 'dm-bubble dm-bubble-mine' : 'dm-bubble dm-bubble-theirs';
+        return `
+          <div class="${bubbleClass}">
+            <div class="dm-info">
+              <span>${isMine ? 'You' : escapeHtml(displayName(m.senderEmail))}</span>
+              <span>${formatDate(m.dateSent)}</span>
+            </div>
+            <div>${escapeHtml(m.content)}</div>
+          </div>
+        `;
+      }).join('');
+      chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+      chatBox.innerHTML = "<p class='text-center text-muted'>Failed to load messages.</p>";
+    }
+  }
+
+  async function sendDirectMessageNow() {
+    const input = document.getElementById("dmMsgInput");
+    const content = input.value.trim();
+    if (!content || !activeDmPartnerId) return;
+    try {
+      await ApiService.sendDirectMessage({
+        receiverId: activeDmPartnerId,
+        content: content
+      });
+      input.value = "";
+      await loadDirectMessages();
+    } catch (err) {
+      alert("Failed to send direct message.");
+    }
+  }
+
+  document.getElementById("dmMsgInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") sendDirectMessageNow();
+  });
+
+  document.getElementById('dmOffcanvas').addEventListener('hidden.bs.offcanvas', () => {
+    if (dmInterval) clearInterval(dmInterval);
+    dmInterval = null;
+    activeDmPartnerId = null;
+    activeDmPartnerEmail = null;
+    document.getElementById("dmListView").style.display = "block";
+    document.getElementById("dmThreadView").style.display = "none";
+    document.getElementById("dmBackBtn").style.display = "none";
+    document.getElementById("dmOffcanvasLabel").textContent = "Inbox";
+    document.getElementById("dmRecipientEmail").textContent = "";
+  });
+
+  document.getElementById('inboxBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    openInbox();
+  });
+
+  async function checkRoomOwnership() {
+    try {
+      const response = await ApiService.getAllRooms();
+      const roomList = response.rooms || response;
+      const room = roomList.find(r => String(r.id || r.Id) === String(roomId));
+      if (!room) return;
+      const ownerId = String(room.userId || room.UserId || '');
+      const currentId = String(getUserIdFromToken());
+      if (ownerId !== currentId) {
+        document.querySelector('button[onclick="goToCreateRoom()"]') &&
+          (document.querySelector('button[onclick="goToCreateRoom()"]').style.display = 'none');
+      }
+    } catch(e) {}
+  }
+
+  function setReply(msgId, chatType) {
+    const msgs = chatType === 'global' ? globalMsgs : subMsgs;
+    const msg = msgs.find(m => String(m.id) === String(msgId));
+    if (!msg) return;
+
+    if (chatType === 'global') {
+      globalReplyToId = msg.id;
+      document.getElementById('globalReplyName').textContent = displayName(msg.senderEmail);
+      document.getElementById('globalReplyPreview').textContent =
+        msg.content.length > 60 ? msg.content.slice(0, 60) + '…' : msg.content;
+      document.getElementById('globalReplyBanner').style.display = 'flex';
+      document.getElementById('globalMsgInput').focus();
+    } else {
+      subReplyToId = msg.id;
+      document.getElementById('subReplyName').textContent = displayName(msg.senderEmail);
+      document.getElementById('subReplyPreview').textContent =
+        msg.content.length > 60 ? msg.content.slice(0, 60) + '…' : msg.content;
+      document.getElementById('subReplyBanner').style.display = 'flex';
+      document.getElementById('subMsgInput').focus();
+    }
+  }
+
+  function cancelReply(chatType) {
+    if (chatType === 'global') {
+      globalReplyToId = null;
+      document.getElementById('globalReplyBanner').style.display = 'none';
+    } else {
+      subReplyToId = null;
+      document.getElementById('subReplyBanner').style.display = 'none';
+    }
+  }
+
+  let activeEmojiInput = null;
+
+  function toggleEmoji(inputId, btn) {
+    const wrapper = document.getElementById('emojiPickerWrapper');
+    const isSame = activeEmojiInput === inputId && wrapper.style.display === 'block';
+
+    if (isSame) {
+      wrapper.style.display = 'none';
+      activeEmojiInput = null;
+      return;
+    }
+
+    activeEmojiInput = inputId;
+    const rect = btn.getBoundingClientRect();
+    wrapper.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+    wrapper.style.right = (window.innerWidth - rect.right) + 'px';
+    wrapper.style.display = 'block';
+  }
+
+  document.querySelector('emoji-picker').addEventListener('emoji-click', e => {
+    if (!activeEmojiInput) return;
+    const input = document.getElementById(activeEmojiInput);
+    const pos = input.selectionStart ?? input.value.length;
+    input.value = input.value.slice(0, pos) + e.detail.unicode + input.value.slice(pos);
+    input.focus();
+    input.selectionStart = input.selectionEnd = pos + e.detail.unicode.length;
+  });
+
+  document.addEventListener('click', e => {
+    const wrapper = document.getElementById('emojiPickerWrapper');
+    if (wrapper.style.display === 'none') return;
+    if (!wrapper.contains(e.target) && !e.target.closest('[onclick^="toggleEmoji"]')) {
+      wrapper.style.display = 'none';
+      activeEmojiInput = null;
+    }
+  });
+
+  loadSubRooms();
+  loadRoomMessages();
+  checkRoomOwnership();
+  setInterval(loadRoomMessages, 10000);
+</script>
+</body>
+</html>
